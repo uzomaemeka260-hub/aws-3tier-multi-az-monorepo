@@ -1,0 +1,59 @@
+version: '3.8'
+services:
+  localstack:
+    image: localstack/localstack:3.0.0
+    container_name: localstack_main
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3,lambda,sqs,dynamodb,ec2,ssm,iam,sts,elbv2,autoscaling,rds,efs
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - "./.localstack:/var/lib/localstack"
+    networks:
+      - local_network
+
+  local_postgres:
+    image: postgres:15-alpine
+    container_name: local_postgres_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=app_production
+      - POSTGRES_USER=dbadmin
+      - POSTGRES_PASSWORD=SecurePostgresPass123!
+    networks:
+      - local_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: local_backend_api
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=local_postgres
+      - DB_NAME=app_production
+      - DB_USER=dbadmin
+      - DB_PASSWORD=SecurePostgresPass123!
+    depends_on:
+      - local_postgres
+    networks:
+      - local_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: local_frontend_ui
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - local_network
+
+networks:
+  local_network:
+    driver: bridge
