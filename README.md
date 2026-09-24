@@ -2,7 +2,7 @@
 
 A fully deployed, production-grade cloud infrastructure built on AWS using Terraform, Docker, and GitHub Actions. This project provisions a complete 3-tier architecture across multiple availability zones with zero manual server configuration.
 
-**Live URL:** `http://public-alb-1368015696.us-east-1.elb.amazonaws.com`
+**Live URL:** `https://devops.megatyreslimited.homes`
 
 ---
 
@@ -64,6 +64,7 @@ GitHub Actions handles all build and deploy tasks. Docker images are compiled on
 - RDS connections require SSL (enforced by parameter group)
 - EFS file system encrypted at rest
 - Terraform state encrypted in S3 with DynamoDB state locking
+- HTTPS enforced at the ALB using ACM certificate — HTTP requests are permanently redirected to HTTPS (301)
 
 **Observability**
 CloudWatch monitors every layer of the stack. ALB unhealthy host and 5XX error alarms, EC2 CPU alarms on both ASGs, and RDS CPU and free storage alarms all feed into a single SNS topic. A CloudWatch dashboard gives a single-pane view of the entire infrastructure. Log groups capture nginx and backend application logs with 7-day retention.
