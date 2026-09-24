@@ -84,7 +84,7 @@ jobs:
                 'sudo docker stop frontend || true',
                 'sudo docker rm frontend || true',
                 'sudo docker pull ghcr.io/${{ github.repository }}/app-frontend:latest',
-                'sudo docker run -d --name frontend --restart always -p 80:80 ghcr.io/${{ github.repository }}/app-frontend:latest'
+                'sudo docker run -d --name frontend --restart always -p 3000:80 ghcr.io/${{ github.repository }}/app-frontend:latest'
               ]" \
               --region us-east-1
           done

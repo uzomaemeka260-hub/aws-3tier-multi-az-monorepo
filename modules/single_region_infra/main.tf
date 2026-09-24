@@ -330,7 +330,7 @@ resource "aws_launch_template" "nginx" {
     cat <<'NCONF' > /etc/nginx/conf.d/proxy.conf
     server {
       listen 80;
-      location / { proxy_pass http://localhost:80; }
+      location / { proxy_pass http://127.0.0.1:3000; }
       location /api/ { proxy_pass http://${aws_lb.internal.dns_name}:80; }
     }
     NCONF
