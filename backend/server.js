@@ -11,7 +11,8 @@ const pool = new Pool({
     database: process.env.DB_NAME || 'app_production',
     user: process.env.DB_USER || 'dbadmin',
     password: process.env.DB_PASSWORD || 'SecurePostgresPass123!',
-    port: 5432
+    port: 5432,
+    ssl: { rejectUnauthorized: false }
 });
 
 const initDb = async () => {
