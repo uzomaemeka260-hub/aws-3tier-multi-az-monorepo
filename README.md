@@ -1,49 +1,110 @@
-# Enterprise Multi-AZ 3-Tier Core Infrastructure Stack
+# Production 3-Tier AWS Infrastructure — Multi-AZ
 
-A highly resilient, secure, and cost-optimized infrastructure monorepo provisioning a production-grade 3-tier networking topology natively on AWS using Terraform, Docker, and GitHub Actions.
+A fully deployed, production-grade cloud infrastructure built on AWS using Terraform, Docker, and GitHub Actions. This project provisions a complete 3-tier architecture across multiple availability zones with zero manual server configuration.
 
-## 🚀 System Architecture Layout
-
-This deployment model follows absolute network layer separation to isolate our compute vectors and secure our database state engines.
-
-
-[ Public Internet Ingress ]│▼┌──────────────────────────────┐│  Application Load Balancer   │└──────────────┬───────────────┘│┌──────────────▼───────────────┐│       Private Subnet 1       ││   Nginx Proxy Router ASG     │└──────────────┬───────────────┘│┌──────────────▼───────────────┐│       Private Subnet 2       ││      Node.js Core ASG        │  ◄─── [ AWS EFS Mount Target ]└──────────────┬───────────────┘│┌──────────────▼───────────────┐│     Isolated DB Subnet       ││    RDS PostgreSQL (Multi-AZ) │└──────────────────────────────┘
-
-
-## 🛠️ Key Senior DevOps Engineering Features
-
-*   **Financial Cloud Guardrails:** Built to run 100% inside the 12-month AWS Free Tier boundaries by using `t2.micro` instances. Implements a high-value **Single NAT Gateway pattern** inside the primary public subnet, cutting baseline infrastructure costs by 60% compared to typical multi-AZ setups.
-*   **Zero-Trust Networking Architecture:** Completely removes vulnerable public Bastion hosts. All backend infrastructure components leverage AWS Systems Manager (SSM) Core Instance Profiles, ensuring no inbound Port 22 firewall vulnerabilities are exposed to the public web.
-*   **Integrated Multi-AZ Resilience:** Provisions network endpoints across three separate availability zones. If a physical data center encounters an outage, the self-healing Auto Scaling Groups (ASG) and Multi-AZ RDS hot-standby nodes fail over transparently.
-*   **Native Hybrid CI/CD Pipeline Build Architecture:** Employs **GitHub Container Registry (GHCR)** via secure pipeline triggers. Resource-heavy code compilation tasks run on free GitHub cloud runners to prevent memory crashes on small staging instances.
+**Live URL:** `http://public-alb-1368015696.us-east-1.elb.amazonaws.com`
 
 ---
 
-## 🛠️ Deployment Operational Runbook
+## Architecture
+
+```
+[ Internet ]
+     │
+     ▼
+[ Application Load Balancer ]  ← Public, Multi-AZ
+     │
+     ▼
+[ Nginx Instances — ASG ]      ← Private Subnet 1, serves React static files
+     │
+     ▼
+[ Internal ALB ]               ← Private, routes /api/ traffic
+     │
+     ▼
+[ Node.js API — ASG ]          ← Private Subnet 2, connected to EFS
+     │
+     ▼
+[ RDS PostgreSQL — Multi-AZ ]  ← Isolated DB Subnet, encrypted, hot standby
+```
+
+---
+
+## Engineering Decisions
+
+**Single NAT Gateway**
+Deliberately uses one NAT Gateway across all private subnets instead of one per AZ. Reduces baseline infrastructure cost by ~60% while maintaining full outbound internet access for private instances — an intentional trade-off appropriate for cost-optimised environments.
+
+**Zero-Trust Access — No Bastion Host**
+All EC2 instances are accessed exclusively via AWS Systems Manager (SSM). No inbound port 22 is open anywhere in the infrastructure. This eliminates the most common attack vector in cloud environments.
+
+**Static File Serving**
+The React frontend is built on GitHub Actions runners (free) and synced directly to nginx via S3. Nginx serves static files from disk — no Node.js process running on the frontend tier, no container port conflicts, instant 200 responses for ALB health checks.
+
+**CI/CD Pipeline**
+GitHub Actions handles all build and deploy tasks. Docker images are compiled on free GitHub cloud runners to avoid memory pressure on t2.micro instances. The deploy job uses SSM to push updates to instances without any open network ports.
+
+**Encrypted Everything**
+- RDS storage encrypted at rest
+- RDS connections require SSL (enforced by parameter group)
+- EFS file system encrypted at rest
+- Terraform state encrypted in S3 with DynamoDB state locking
+
+---
+
+## Stack
+
+| Layer | Technology |
+|---|---|
+| Infrastructure as Code | Terraform >= 1.5.0 |
+| Cloud Provider | AWS (us-east-1) |
+| Compute | EC2 t2.micro, Auto Scaling Groups |
+| Load Balancing | AWS ALB (public + internal) |
+| Frontend | React 18, served via Nginx |
+| Backend | Node.js, Express |
+| Database | RDS PostgreSQL 15, Multi-AZ |
+| Shared Storage | AWS EFS |
+| Access Management | AWS SSM, IAM Roles |
+| CI/CD | GitHub Actions, GHCR |
+| State Management | S3 + DynamoDB |
+
+---
+
+## Deployment
 
 ### Prerequisites
-*   AWS CLI installed and authenticated via `aws configure`
-*   Terraform CLI (>= 1.5.0)
+- AWS CLI configured (`aws configure`)
+- Terraform >= 1.5.0
 
-### Step 1: Clone and Initialize
+### 1. Create S3 state bucket and DynamoDB lock table
+```bash
+aws s3api create-bucket --bucket <your-unique-bucket-name> --region us-east-1
+aws s3api put-bucket-versioning --bucket <your-unique-bucket-name> --versioning-configuration Status=Enabled
+aws dynamodb create-table --table-name enterprise-tf-state-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST --region us-east-1
+```
+
+### 2. Initialise and deploy
 ```bash
 terraform init
-```
-
-### Step 2: Validate the Infrastructure Map
-```bash
-terraform plan
-```
-*Provide your GitHub repository parameters and runner token strings when prompted by the variables module engine.*
-
-### Step 3: Spin Up Live Environments
-```bash
 terraform apply -auto-approve
 ```
 
-### Step 4: Map the Secret Database Token Bridge
-Once the environment builds successfully, copy the `database_endpoint` output printed on your terminal console screen. Save it inside your GitHub Repository under **Settings ➔ Secrets and variables ➔ Actions** as a new secret variable named exactly: **`AWS_RDS_ENDPOINT`**.
-Step 3: Push the New Files to GitHubNow that both files are saved cleanly in VS Code, run these quick commands in your terminal to sync your updated repository with GitHub using your SSH key [home-improvement]:bashgit add .gitignore README.md
-git commit -m "docs: add comprehensive case study documentation and terraform gitignore rules"
-git push origin main
-Use code with caution.Your portfolio project is now fully documented, secure, and ready for deployment.
+### 3. Add GitHub Secrets
+After apply completes, add these secrets to your GitHub repository under **Settings → Secrets and variables → Actions**:
+
+| Secret | Value |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | Your AWS access key |
+| `AWS_SECRET_ACCESS_KEY` | Your AWS secret key |
+| `AWS_RDS_ENDPOINT` | The `database_endpoint` output (without `:5432`) |
+
+### 4. Trigger the pipeline
+Push any change to `main` to build and deploy the application automatically.
+
+---
+
+## Cost
+
+Designed to run within the AWS 12-month Free Tier using `t2.micro` instances. The only costs outside Free Tier are the NAT Gateway (~$0.045/hr) and Multi-AZ RDS if running beyond the free tier period.
