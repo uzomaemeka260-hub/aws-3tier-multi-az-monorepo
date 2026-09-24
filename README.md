@@ -65,6 +65,9 @@ GitHub Actions handles all build and deploy tasks. Docker images are compiled on
 - EFS file system encrypted at rest
 - Terraform state encrypted in S3 with DynamoDB state locking
 
+**Observability**
+CloudWatch monitors every layer of the stack. ALB unhealthy host and 5XX error alarms, EC2 CPU alarms on both ASGs, and RDS CPU and free storage alarms all feed into a single SNS topic. A CloudWatch dashboard gives a single-pane view of the entire infrastructure. Log groups capture nginx and backend application logs with 7-day retention.
+
 ---
 
 ## Stack
@@ -82,6 +85,7 @@ GitHub Actions handles all build and deploy tasks. Docker images are compiled on
 | Access Management | AWS SSM, IAM Roles |
 | CI/CD | GitHub Actions, GHCR |
 | State Management | S3 + DynamoDB |
+| Monitoring | CloudWatch Alarms, Dashboards, SNS |
 
 ---
 

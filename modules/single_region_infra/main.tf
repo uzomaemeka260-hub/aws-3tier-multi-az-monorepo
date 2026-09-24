@@ -412,3 +412,171 @@ resource "aws_autoscaling_group" "backend" {
 
 output "public_alb_dns"    { value = aws_lb.public.dns_name }
 output "database_endpoint" { value = aws_db_instance.postgres.endpoint }
+
+# --- CloudWatch Log Groups ---
+resource "aws_cloudwatch_log_group" "nginx" {
+  name              = "/production/nginx"
+  retention_in_days = 7
+}
+
+resource "aws_cloudwatch_log_group" "backend" {
+  name              = "/production/backend"
+  retention_in_days = 7
+}
+
+# --- SNS Topic for Alerts ---
+resource "aws_sns_topic" "alerts" {
+  name = "production-alerts"
+}
+
+# --- ALB Alarms ---
+resource "aws_cloudwatch_metric_alarm" "alb_unhealthy_hosts" {
+  alarm_name          = "alb-unhealthy-hosts"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "UnHealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 0
+  alarm_description   = "ALB has unhealthy targets"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  dimensions = {
+    LoadBalancer = aws_lb.public.arn_suffix
+    TargetGroup  = aws_lb_target_group.nginx.arn_suffix
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "alb_5xx_errors" {
+  alarm_name          = "alb-5xx-errors"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "HTTPCode_ELB_5XX_Count"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 10
+  alarm_description   = "ALB returning 5XX errors"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  dimensions = {
+    LoadBalancer = aws_lb.public.arn_suffix
+  }
+}
+
+# --- EC2 Nginx CPU Alarm ---
+resource "aws_cloudwatch_metric_alarm" "nginx_cpu" {
+  alarm_name          = "nginx-high-cpu"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 120
+  statistic           = "Average"
+  threshold           = 80
+  alarm_description   = "Nginx EC2 CPU above 80%"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.nginx.name
+  }
+}
+
+# --- EC2 Backend CPU Alarm ---
+resource "aws_cloudwatch_metric_alarm" "backend_cpu" {
+  alarm_name          = "backend-high-cpu"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 120
+  statistic           = "Average"
+  threshold           = 80
+  alarm_description   = "Backend EC2 CPU above 80%"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.backend.name
+  }
+}
+
+# --- RDS Alarms ---
+resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
+  alarm_name          = "rds-high-cpu"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/RDS"
+  period              = 120
+  statistic           = "Average"
+  threshold           = 80
+  alarm_description   = "RDS CPU above 80%"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.postgres.identifier
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "rds_storage" {
+  alarm_name          = "rds-low-storage"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "FreeStorageSpace"
+  namespace           = "AWS/RDS"
+  period              = 120
+  statistic           = "Average"
+  threshold           = 5000000000
+  alarm_description   = "RDS free storage below 5GB"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.postgres.identifier
+  }
+}
+
+# --- CloudWatch Dashboard ---
+resource "aws_cloudwatch_dashboard" "main" {
+  dashboard_name = "production-overview"
+  dashboard_body = jsonencode({
+    widgets = [
+      {
+        type = "metric"
+        properties = {
+          title  = "ALB Healthy Host Count"
+          metrics = [["AWS/ApplicationELB", "HealthyHostCount", "LoadBalancer", aws_lb.public.arn_suffix, "TargetGroup", aws_lb_target_group.nginx.arn_suffix]]
+          period = 60
+          stat   = "Average"
+        }
+      },
+      {
+        type = "metric"
+        properties = {
+          title  = "ALB 5XX Errors"
+          metrics = [["AWS/ApplicationELB", "HTTPCode_ELB_5XX_Count", "LoadBalancer", aws_lb.public.arn_suffix]]
+          period = 60
+          stat   = "Sum"
+        }
+      },
+      {
+        type = "metric"
+        properties = {
+          title  = "EC2 CPU Utilization"
+          metrics = [
+            ["AWS/EC2", "CPUUtilization", "AutoScalingGroupName", aws_autoscaling_group.nginx.name],
+            ["AWS/EC2", "CPUUtilization", "AutoScalingGroupName", aws_autoscaling_group.backend.name]
+          ]
+          period = 120
+          stat   = "Average"
+        }
+      },
+      {
+        type = "metric"
+        properties = {
+          title  = "RDS CPU & Storage"
+          metrics = [
+            ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", aws_db_instance.postgres.identifier],
+            ["AWS/RDS", "FreeStorageSpace", "DBInstanceIdentifier", aws_db_instance.postgres.identifier]
+          ]
+          period = 120
+          stat   = "Average"
+        }
+      }
+    ]
+  })
+}
