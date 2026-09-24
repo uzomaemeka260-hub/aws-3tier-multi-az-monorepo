@@ -338,17 +338,21 @@ resource "aws_launch_template" "nginx" {
   }
   user_data = base64encode(<<-EOF
     #!/bin/bash
-    sudo yum update -y
-    sudo yum install -y nginx
-    sudo systemctl enable nginx --now
-    cat <<'NCONF' > /etc/nginx/conf.d/proxy.conf
+    yum update -y
+    yum install -y nginx aws-cli
+    mkdir -p /usr/share/nginx/html
+    echo '<html><body>Loading...</body></html>' > /usr/share/nginx/html/index.html
+    cat > /etc/nginx/conf.d/app.conf <<NCONF
     server {
       listen 80;
-      location / { proxy_pass http://127.0.0.1:3000; }
+      root /usr/share/nginx/html;
+      index index.html;
+      location / { try_files \$uri \$uri/ /index.html =200; }
       location /api/ { proxy_pass http://${aws_lb.internal.dns_name}:80; }
     }
     NCONF
-    sudo systemctl restart nginx
+    rm -f /etc/nginx/conf.d/default.conf
+    systemctl enable nginx --now
   EOF
   )
 }
