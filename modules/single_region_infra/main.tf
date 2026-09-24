@@ -316,6 +316,15 @@ resource "aws_lb_target_group" "backend" {
   port     = 8080
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
+
+  health_check {
+    path                = "/health"
+    healthy_threshold   = 2
+    unhealthy_threshold = 10
+    interval            = 30
+    timeout             = 10
+    matcher             = "200"
+  }
 }
 
 resource "aws_lb_listener" "internal" {

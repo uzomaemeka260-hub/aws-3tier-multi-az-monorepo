@@ -26,6 +26,8 @@ const initDb = async () => {
 };
 initDb().then(() => console.log("Database initialized")).catch(console.error);
 
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
+
 app.post('/api/users', async (req, res) => {
     const { username, address } = req.body;
     try {
