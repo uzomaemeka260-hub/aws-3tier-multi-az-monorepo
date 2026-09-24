@@ -96,15 +96,14 @@ CloudWatch monitors every layer of the stack. ALB unhealthy host and 5XX error a
 - AWS CLI configured (`aws configure`)
 - Terraform >= 1.5.0
 
-### 1. Create S3 state bucket and DynamoDB lock table
+### 1. Bootstrap — Create state bucket, DynamoDB lock table and ACM certificate
 ```bash
-aws s3api create-bucket --bucket <your-unique-bucket-name> --region us-east-1
-aws s3api put-bucket-versioning --bucket <your-unique-bucket-name> --versioning-configuration Status=Enabled
-aws dynamodb create-table --table-name enterprise-tf-state-locks \
-  --attribute-definitions AttributeName=LockID,AttributeType=S \
-  --key-schema AttributeName=LockID,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST --region us-east-1
+cd bootstrap
+terraform init
+terraform apply -auto-approve
+cd ..
 ```
+Copy the `acm_validation_name` and `acm_validation_value` outputs and add them as a CNAME record in your DNS provider to validate the certificate.
 
 ### 2. Initialise and deploy
 ```bash
@@ -123,6 +122,18 @@ After apply completes, add these secrets to your GitHub repository under **Setti
 
 ### 4. Trigger the pipeline
 Push any change to `main` to build and deploy the application automatically.
+
+### Teardown
+To destroy everything completely:
+```bash
+# Step 1 - destroy main infrastructure
+terraform destroy -auto-approve
+
+# Step 2 - destroy bootstrap resources
+cd bootstrap
+terraform destroy -auto-approve
+cd ..
+```
 
 ---
 
