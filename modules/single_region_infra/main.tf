@@ -8,8 +8,13 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
-data "aws_ssm_parameter" "ami" {
-  name = "/aws/service/ami-amazon-linux-2023/x86_64/standard/latest"
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+  owners      = ["amazon"]
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
 }
 
 resource "aws_vpc" "main" {
@@ -247,7 +252,7 @@ resource "aws_db_instance" "postgres" {
   allocated_storage      = 20
   max_allocated_storage  = 40
   engine                 = "postgres"
-  engine_version         = "15.4"
+  engine_version         = "15.13"
   instance_class         = "db.t3.micro"
   db_name                = "app_production"
   username               = "dbadmin"
@@ -311,7 +316,7 @@ resource "aws_lb_listener" "internal" {
 
 resource "aws_launch_template" "nginx" {
   name_prefix            = "lt-nginx-"
-  image_id               = data.aws_ssm_parameter.ami.value
+  image_id               = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
   vpc_security_group_ids = [aws_security_group.nginx_proxy.id]
   iam_instance_profile {
@@ -349,7 +354,7 @@ resource "aws_autoscaling_group" "nginx" {
 
 resource "aws_launch_template" "backend" {
   name_prefix            = "lt-backend-"
-  image_id               = data.aws_ssm_parameter.ami.value
+  image_id               = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
   vpc_security_group_ids = [aws_security_group.backend_app.id]
   iam_instance_profile {
