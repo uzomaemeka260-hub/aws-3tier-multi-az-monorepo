@@ -6,6 +6,22 @@ A fully deployed, production-grade cloud infrastructure built on AWS using Terra
 
 ---
 
+## Screenshots
+
+### Live Application
+![App](screenshots/Application.png)
+
+### GitHub Actions Pipeline
+![Pipeline](screenshots/complete%20build%20and%20deploy%20using%20github%20action%20.png)
+
+### Terraform Plan
+![Terraform](screenshots/terraform%20file%20plan%20and%20approved%20sucessfully.png)
+
+### Final Deployment Push
+![Deploy](screenshots/final%20push%20to%20repo%20for%20deployment%20using%20action.png)
+
+---
+
 ## Architecture
 
 ```
