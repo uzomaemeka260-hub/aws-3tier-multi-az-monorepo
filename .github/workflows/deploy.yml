@@ -73,6 +73,18 @@ jobs:
             --output text)
 
           for INSTANCE_ID in $INSTANCE_IDS; do
+            echo "Waiting for SSM on $INSTANCE_ID..."
+            aws ssm wait command-executed \
+              --command-id $(aws ssm send-command \
+                --instance-ids "$INSTANCE_ID" \
+                --document-name "AWS-RunShellScript" \
+                --parameters commands=["echo ready"] \
+                --region us-east-1 \
+                --query "Command.CommandId" \
+                --output text) \
+              --instance-id "$INSTANCE_ID" \
+              --region us-east-1 2>/dev/null || true
+
             aws ssm send-command \
               --instance-ids "$INSTANCE_ID" \
               --document-name "AWS-RunShellScript" \
@@ -88,6 +100,18 @@ jobs:
             --output text)
 
           for INSTANCE_ID in $INSTANCE_IDS; do
+            echo "Waiting for SSM on $INSTANCE_ID..."
+            aws ssm wait command-executed \
+              --command-id $(aws ssm send-command \
+                --instance-ids "$INSTANCE_ID" \
+                --document-name "AWS-RunShellScript" \
+                --parameters commands=["echo ready"] \
+                --region us-east-1 \
+                --query "Command.CommandId" \
+                --output text) \
+              --instance-id "$INSTANCE_ID" \
+              --region us-east-1 2>/dev/null || true
+
             aws ssm send-command \
               --instance-ids "$INSTANCE_ID" \
               --document-name "AWS-RunShellScript" \
